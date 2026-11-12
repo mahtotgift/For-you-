@@ -1,0 +1,40 @@
+name: Unzip uploaded zip
+
+on:
+  push:
+    paths:
+      - "*.zip"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip, move files to repo root, delete zip
+        run: |
+          shopt -s nullglob dotglob
+          zips=(*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then echo "No zip found"; exit 0; fi
+          for z in "${zips[@]}"; do
+            rm -rf /tmp/x && mkdir /tmp/x
+            unzip -q "$z" -d /tmp/x
+            src=/tmp/x
+            items=("$src"/*)
+            if [ ${#items[@]} -eq 1 ] && [ -d "${items[0]}" ]; then src="${items[0]}"; fi
+            cp -a "$src"/. .
+            git rm -q -f "$z"
+          done
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Unzip project files [skip ci]"
+          git push
